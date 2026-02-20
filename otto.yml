@@ -1,0 +1,134 @@
+version: 1
+
+defaults:
+  timeout: "10m"
+  retries: 0
+  retry_backoff: "1s"
+  notify_on: never
+
+notifications:
+  desktop: false
+
+tasks:
+  help:
+    description: show available development tasks
+    run: |
+      cat <<'EOF'
+      available tasks:
+        otto run fmt        - format go source files
+        otto run test       - run unit and integration tests
+        otto run test-race  - run tests with race detector
+        otto run vet        - run go vet
+        otto run lint       - run golangci-lint
+        otto run build      - build binary to ./target/otto
+        otto run run-cli    - build and run cli locally
+        otto run coverage   - generate coverage.out
+        otto run ci         - run local ci command set
+        otto run clean      - remove build artifacts and local cache
+      EOF
+
+  fmt:
+    description: format go source files
+    run: |
+      set -eu
+      mkdir -p ./.gocache
+      files="$(find . -type f -name '*.go' -not -path './.gocache/*')"
+      if [ -n "$files" ]; then
+        gofmt -w $files
+      fi
+      if command -v goimports >/dev/null 2>&1; then
+        if [ -n "$files" ]; then
+          goimports -w $files
+        fi
+      else
+        echo "goimports not found, skipping import formatting"
+      fi
+
+  test:
+    description: run unit and integration tests
+    run: |
+      set -eu
+      mkdir -p ./.gocache
+      GOCACHE="$PWD/.gocache" go test ./...
+
+  test-race:
+    description: run tests with race detector
+    run: |
+      set -eu
+      mkdir -p ./.gocache
+      GOCACHE="$PWD/.gocache" go test -race ./...
+
+  vet:
+    description: run go vet
+    run: |
+      set -eu
+      mkdir -p ./.gocache
+      GOCACHE="$PWD/.gocache" go vet ./...
+
+  lint:
+    description: run golangci-lint
+    run: |
+      set -eu
+      if ! command -v golangci-lint >/dev/null 2>&1; then
+        echo "golangci-lint not found. install: go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest"
+        exit 1
+      fi
+      mkdir -p ./.gocache
+      GOCACHE="$PWD/.gocache" golangci-lint run
+
+  build:
+    description: build binary to ./target/otto
+    run: |
+      set -eu
+      mkdir -p ./.gocache ./target
+      GOCACHE="$PWD/.gocache" go build -trimpath -ldflags "-s -w" -o ./target/otto ./cmd/otto
+
+  run-cli:
+    description: build and run cli locally
+    run: |
+      set -eu
+      mkdir -p ./.gocache ./target
+      GOCACHE="$PWD/.gocache" go build -trimpath -ldflags "-s -w" -o ./target/otto ./cmd/otto
+      ./target/otto
+
+  coverage:
+    description: generate coverage.out
+    run: |
+      set -eu
+      mkdir -p ./.gocache
+      GOCACHE="$PWD/.gocache" go test -coverprofile=coverage.out ./...
+
+  ci:
+    description: run local ci command set
+    run: |
+      set -eu
+      mkdir -p ./.gocache
+
+      files="$(find . -type f -name '*.go' -not -path './.gocache/*')"
+      if [ -n "$files" ]; then
+        gofmt -w $files
+      fi
+      if command -v goimports >/dev/null 2>&1; then
+        if [ -n "$files" ]; then
+          goimports -w $files
+        fi
+      else
+        echo "goimports not found, skipping import formatting"
+      fi
+
+      GOCACHE="$PWD/.gocache" go test ./...
+      GOCACHE="$PWD/.gocache" go test -race ./...
+      GOCACHE="$PWD/.gocache" go vet ./...
+
+      if ! command -v golangci-lint >/dev/null 2>&1; then
+        echo "golangci-lint not found. install: go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest"
+        exit 1
+      fi
+      GOCACHE="$PWD/.gocache" golangci-lint run
+
+      mkdir -p ./target
+      GOCACHE="$PWD/.gocache" go build -trimpath -ldflags "-s -w" -o ./target/otto ./cmd/otto
+
+  clean:
+    description: remove build artifacts and local cache
+    run: rm -rf ./target ./dist ./coverage.out ./coverage.html ./.gocache

@@ -1,0 +1,47 @@
+name: homebrew-formula
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to render formula for (example: v1.0.0)"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  update-formula:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: checkout default branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+
+      - name: render formula
+        env:
+          TAG: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+          chmod +x scripts/render-homebrew-formula.sh
+          ./scripts/render-homebrew-formula.sh "$TAG" Formula/otto.rb
+
+      - name: commit formula update
+        env:
+          TAG: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- Formula/otto.rb; then
+            echo "no formula changes"
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Formula/otto.rb
+          git commit -m "chore(homebrew): update formula for ${TAG}"
+          git push
+
