@@ -1,0 +1,13 @@
+# build outputs
+/target/
+/dist/
+
+# local runtime data
+/.hugo/
+
+# editor and os noise
+.DS_Store
+.idea/
+.vscode/
+
+.otto

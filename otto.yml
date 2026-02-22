@@ -1,0 +1,52 @@
+version: 1
+
+defaults:
+  timeout: "10m"
+  retries: 0
+  retry_backoff: "1s"
+  notify_on: never
+
+notifications:
+  desktop: true
+
+tasks:
+  fmt:
+    description: Format rust sources
+    run: |
+      set -eu
+      cargo fmt --all
+
+  test:
+    description: Run unit and integration tests
+    run: |
+      set -eu
+      cargo test
+
+  lint:
+    description: Run formatting checks
+    run: |
+      set -eu
+      cargo fmt --all --check
+
+  clippy:
+    description: Run clippy with warnings denied
+    run: |
+      set -eu
+      cargo clippy --all-targets --all-features -- -D warnings
+
+  build:
+    description: Build release binary
+    run: |
+      set -eu
+      mkdir -p ./dist
+      cargo build --release
+      cp ./target/release/otto ./dist/otto
+
+  ci:
+    description: Run local ci command set via task composition
+    tasks: ["lint", "build", "clippy"]
+    parallel: true # parallelising only speeds up a certain amount, they all need lock on package cache
+
+  clean:
+    description: Remove build and test artifacts
+    run: rm -rf ./dist ./target

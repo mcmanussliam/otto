@@ -1,0 +1,93 @@
+version: 1 # schema version. Keep this at 1.
+
+# defaults apply to every task unless overridden at task level.
+defaults:
+  timeout: "2m" # max runtime per attempt. Examples: 500ms, 30s, 2m, 1h
+  retries: 0 # retries after the first failed attempt. Allowed: 0..10
+  retry_backoff: "1s"
+  notify_on: failure # notification policy for runs: never, failure or always
+
+# global notification providers.
+notifications:
+  desktop: true
+
+  # optional webhook for machine notifications.
+  # webhook_url: "https://example.com/hooks/otto"
+
+  # optional timeout for webhook HTTP POST.
+  # webhook_timeout: "5s"
+
+# A task must define exactly one execution mode:
+# - `exec`: argv array, no shell parsing
+# - `run`: shell command string
+# - `tasks`: composed task list (sequential or parallel)
+tasks:
+  test:
+    description: Run unit tests with direct argv execution
+    exec: ["cargo", "test"] # exec mode is safest for explicit command + args.
+
+    # optional per-task overrides:
+    timeout: "5m"
+    retries: 1
+    retry_backoff: "2s"
+    notify_on: failure
+
+  lint:
+    description: Run format and lint checks in a shell block
+
+    # run mode executes in shell:
+    # - macOS/Linux: /bin/sh -c
+    # - Windows: cmd /C
+    run: |
+      set -eu
+      cargo fmt --all --check
+      cargo clippy --all-targets --all-features -- -D warnings
+
+  docs-build:
+    description: Build docs from a subdirectory with task-specific env vars
+    dir: "./docs" # working directory for command execution.
+
+    # task-local environment variables.
+    # values support variable expansion from process env + dotenv + task env.
+    env:
+      RUSTDOCFLAGS: "-D warnings"
+      PROFILE: "${PROFILE}"
+      BUILD_KIND: "docs-${PROFILE}"
+
+    exec: ["cargo", "doc", "--no-deps"]
+
+    # overrides defaults for this task.
+    timeout: "10m"
+    notify_on: always
+
+  show-env:
+    description: Show expanded values from env/dotenv/task env
+    env:
+      APP_ENV: "${APP_ENV}"
+      TAG: "build-${APP_ENV}"
+    run: |
+      set -eu
+      echo "APP_ENV=$APP_ENV"
+      echo "TAG=$TAG"
+
+  ci:
+    description: Local CI task that references other tasks
+
+    # reference tasks by name.
+    tasks: ["lint", "test", "docs-build"]
+
+    # `false`: run one-by-one, fail fast
+    # `true`: run all in parallel
+    parallel: false
+
+    # `notify_on` still applies to this composed parent task summary record.
+    notify_on: always
+
+  fast-checks:
+    description: Run checks in parallel for faster local feedback
+    tasks: ["lint", "test"]
+    parallel: true
+
+  clean:
+    description: Remove build outputs
+    run: rm -rf ./dist ./target
